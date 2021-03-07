@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Scheb\YahooFinanceApi\Results;
 
-class SearchResult implements \JsonSerializable
+use JsonSerializable;
+
+class SearchResult implements JsonSerializable
 {
     private $symbol;
     private $name;

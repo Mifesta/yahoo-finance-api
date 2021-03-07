@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Scheb\YahooFinanceApi\Results;
 
-class DividendData implements \JsonSerializable
+use DateTime;
+use DateTimeInterface;
+use JsonSerializable;
+
+class DividendData implements JsonSerializable
 {
     private $date;
     private $dividends;
 
-    public function __construct(\DateTime $date, ?float $dividends)
+    public function __construct(DateTime $date, ?float $dividends)
     {
         $this->date = $date;
         $this->dividends = $dividends;
@@ -20,7 +24,7 @@ class DividendData implements \JsonSerializable
         return get_object_vars($this);
     }
 
-    public function getDate(): \DateTimeInterface
+    public function getDate(): DateTimeInterface
     {
         return $this->date;
     }

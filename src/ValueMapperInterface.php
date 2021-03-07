@@ -6,11 +6,11 @@ namespace Scheb\YahooFinanceApi;
 
 interface ValueMapperInterface
 {
+    public const TYPE_BOOL = 'bool';
+    public const TYPE_DATE = 'date';
     public const TYPE_FLOAT = 'float';
     public const TYPE_INT = 'int';
-    public const TYPE_DATE = 'date';
     public const TYPE_STRING = 'string';
-    public const TYPE_BOOL = 'bool';
 
     /**
      * @param mixed $rawValue

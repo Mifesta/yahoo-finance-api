@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Scheb\YahooFinanceApi;
 
+use DateTime;
+use DateTimeInterface;
+use Exception;
+use InvalidArgumentException;
 use Scheb\YahooFinanceApi\Exception\InvalidValueException;
 
 class ValueMapper implements ValueMapperInterface
@@ -27,11 +31,11 @@ class ValueMapper implements ValueMapperInterface
             case self::TYPE_DATE:
                 return $this->mapDateValue($rawValue);
             case self::TYPE_STRING:
-                return (string) $rawValue;
+                return (string)$rawValue;
             case self::TYPE_BOOL:
                 return $this->mapBoolValue($rawValue);
             default:
-                throw new \InvalidArgumentException(sprintf('Invalid data type %s', $type));
+                throw new InvalidArgumentException(sprintf('Invalid data type %s', $type));
         }
     }
 
@@ -44,7 +48,7 @@ class ValueMapper implements ValueMapperInterface
             throw new InvalidValueException(ValueMapperInterface::TYPE_FLOAT);
         }
 
-        return (float) $rawValue;
+        return (float)$rawValue;
     }
 
     /**
@@ -56,7 +60,7 @@ class ValueMapper implements ValueMapperInterface
             throw new InvalidValueException(ValueMapperInterface::TYPE_INT);
         }
 
-        return (int) $rawValue;
+        return (int)$rawValue;
     }
 
     /**
@@ -64,17 +68,17 @@ class ValueMapper implements ValueMapperInterface
      */
     private function mapBoolValue($rawValue): bool
     {
-        return (bool) $rawValue;
+        return (bool)$rawValue;
     }
 
     /**
      * @param mixed $rawValue
      */
-    private function mapDateValue($rawValue): \DateTimeInterface
+    private function mapDateValue($rawValue): DateTimeInterface
     {
         try {
-            return new \DateTime('@'.$rawValue);
-        } catch (\Exception $e) {
+            return new DateTime('@' . $rawValue);
+        } catch (Exception $e) {
             throw new InvalidValueException(ValueMapperInterface::TYPE_DATE);
         }
     }

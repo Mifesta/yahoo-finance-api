@@ -244,7 +244,7 @@ class ApiClient
      */
     protected function getChartData(string $symbol, string $interval, DateTimeInterface $startDate, DateTimeInterface $endDate): array
     {
-        $responseBody = $this->getChartDataResponseBody($symbol, $interval, $startDate, $endDate, self::FILTER_EARN);
+        $responseBody = $this->getChartDataResponseBody($symbol, $interval, $startDate, $endDate, [self::FILTER_DIVIDENDS, self::FILTER_SPLITS, self::FILTER_EARN]);
 
         if ($response = json_decode($responseBody, true)) {
             if (!empty($response['chart']['error'])) {
@@ -258,15 +258,20 @@ class ApiClient
                 $count = count($result['timestamp']);
                 foreach ($result['indicators']['quote'] as $index1 => $quote) {
                     for ($index2 = 0; $index2 < $count; ++$index2) {
-                        $return[] = $this->resultDecoder->createHistoricalData([
+                        $res = [
                             $result['timestamp'][$index2],
                             $quote['open'][$index2],
                             $quote['high'][$index2],
                             $quote['low'][$index2],
                             $quote['close'][$index2],
-                            $result['indicators']['adjclose'][$index1]['adjclose'][$index2],
+                            $result['indicators']['adjclose'][$index1]['adjclose'][$index2] ?? $quote['close'][$index2],
                             $quote['volume'][$index2],
-                        ]);
+                        ];
+                        if (!array_filter($res, function ($item) {
+                            return $item === null;
+                        })) {
+                            $return[] = $this->resultDecoder->createHistoricalData($res);
+                        }
                     }
                 }
             }

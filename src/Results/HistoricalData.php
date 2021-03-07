@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Scheb\YahooFinanceApi\Results;
 
-class HistoricalData implements \JsonSerializable
+use DateTime;
+use DateTimeInterface;
+use JsonSerializable;
+
+class HistoricalData implements JsonSerializable
 {
     private $date;
     private $open;
@@ -14,7 +18,7 @@ class HistoricalData implements \JsonSerializable
     private $adjClose;
     private $volume;
 
-    public function __construct(\DateTime $date, ?float $open, ?float $high, ?float $low, ?float $close, ?float $adjClose, ?int $volume)
+    public function __construct(DateTime $date, ?float $open, ?float $high, ?float $low, ?float $close, ?float $adjClose, ?int $volume)
     {
         $this->date = $date;
         $this->open = $open;
@@ -30,7 +34,7 @@ class HistoricalData implements \JsonSerializable
         return get_object_vars($this);
     }
 
-    public function getDate(): \DateTimeInterface
+    public function getDate(): DateTimeInterface
     {
         return $this->date;
     }

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Scheb\YahooFinanceApi;
 
+use DateTime;
+use DateTimeZone;
+use Exception;
 use Scheb\YahooFinanceApi\Exception\ApiException;
 use Scheb\YahooFinanceApi\Exception\InvalidValueException;
 use Scheb\YahooFinanceApi\Results\DividendData;
@@ -11,13 +14,14 @@ use Scheb\YahooFinanceApi\Results\HistoricalData;
 use Scheb\YahooFinanceApi\Results\Quote;
 use Scheb\YahooFinanceApi\Results\SearchResult;
 use Scheb\YahooFinanceApi\Results\SplitData;
+use function array_key_exists;
+use function count;
+use function is_array;
 
 class ResultDecoder
 {
-    public const HISTORICAL_DATA_HEADER_LINE = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume'];
     public const DIVIDEND_DATA_HEADER_LINE = ['Date', 'Dividends'];
-    public const SPLIT_DATA_HEADER_LINE = ['Date', 'Stock Splits'];
-    public const SEARCH_RESULT_FIELDS = ['symbol', 'name', 'exch', 'type', 'exchDisp', 'typeDisp'];
+    public const HISTORICAL_DATA_HEADER_LINE = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume'];
     public const QUOTE_FIELDS_MAP = [
         'ask' => ValueMapperInterface::TYPE_FLOAT,
         'askSize' => ValueMapperInterface::TYPE_INT,
@@ -90,7 +94,8 @@ class ResultDecoder
         'twoHundredDayAverageChange' => ValueMapperInterface::TYPE_FLOAT,
         'twoHundredDayAverageChangePercent' => ValueMapperInterface::TYPE_FLOAT,
     ];
-
+    public const SEARCH_RESULT_FIELDS = ['symbol', 'name', 'exch', 'type', 'exchDisp', 'typeDisp'];
+    public const SPLIT_DATA_HEADER_LINE = ['Date', 'Stock Splits'];
     /**
      * @var ValueMapperInterface
      */
@@ -104,13 +109,88 @@ class ResultDecoder
     public function transformSearchResult(string $responseBody): array
     {
         $decoded = json_decode($responseBody, true);
-        if (!isset($decoded['data']['items']) || !\is_array($decoded['data']['items'])) {
+        if (!isset($decoded['data']['items']) || !is_array($decoded['data']['items'])) {
             throw new ApiException('Yahoo Search API returned an invalid response', ApiException::INVALID_RESPONSE);
         }
 
         return array_map(function (array $item) {
             return $this->createSearchResultFromJson($item);
         }, $decoded['data']['items']);
+    }
+
+    public function extractCrumb(string $responseBody): string
+    {
+        if (preg_match('#CrumbStore":{"crumb":"(?<crumb>.+?)"}#', $responseBody, $match)) {
+            return json_decode('"' . $match['crumb'] . '"');
+        }
+
+        throw new ApiException('Could not extract crumb from response', ApiException::MISSING_CRUMB);
+    }
+
+    public function transformHistoricalDataResult(string $responseBody): array
+    {
+        $lines = $this->validateHeaderLines($responseBody, self::HISTORICAL_DATA_HEADER_LINE);
+
+        return array_map(function ($line) {
+            return $this->createHistoricalData(explode(',', $line));
+        }, $lines);
+    }
+
+    public function createHistoricalData(array $columns): HistoricalData
+    {
+        if (7 !== count($columns)) {
+            throw new ApiException('CSV did not contain correct number of columns', ApiException::INVALID_RESPONSE);
+        }
+
+        $date = $this->validateDate($columns[0]);
+
+        for ($i = 1; $i <= 6; ++$i) {
+            if (!is_numeric($columns[$i]) && 'null' !== $columns[$i]) {
+                throw new ApiException(sprintf('Not a number in column "%s": %s', self::HISTORICAL_DATA_HEADER_LINE[$i], $columns[$i]), ApiException::INVALID_VALUE);
+            }
+        }
+
+        $open = (float)$columns[1];
+        $high = (float)$columns[2];
+        $low = (float)$columns[3];
+        $close = (float)$columns[4];
+        $adjClose = (float)$columns[5];
+        $volume = (int)$columns[6];
+
+        return new HistoricalData($date, $open, $high, $low, $close, $adjClose, $volume);
+    }
+
+    public function transformDividendDataResult(string $responseBody): array
+    {
+        $lines = $this->validateHeaderLines($responseBody, self::DIVIDEND_DATA_HEADER_LINE);
+
+        return array_map(function ($line) {
+            return $this->createDividendData(explode(',', $line));
+        }, $lines);
+    }
+
+    public function transformSplitDataResult(string $responseBody): array
+    {
+        $lines = $this->validateHeaderLines($responseBody, self::SPLIT_DATA_HEADER_LINE);
+
+        return array_map(function ($line) {
+            return $this->createSplitData(explode(',', $line));
+        }, $lines);
+    }
+
+    public function transformQuotes(string $responseBody): array
+    {
+        $decoded = json_decode($responseBody, true);
+        if (!isset($decoded['quoteResponse']['result']) || !is_array($decoded['quoteResponse']['result'])) {
+            throw new ApiException('Yahoo Search API returned an invalid result.', ApiException::INVALID_RESPONSE);
+        }
+
+        $results = $decoded['quoteResponse']['result'];
+
+        // Single element is returned directly in "quote"
+        return array_map(function (array $item) {
+            return $this->createQuote($item);
+        }, $results);
     }
 
     private function createSearchResultFromJson(array $json): SearchResult
@@ -130,15 +210,6 @@ class ResultDecoder
         );
     }
 
-    public function extractCrumb(string $responseBody): string
-    {
-        if (preg_match('#CrumbStore":{"crumb":"(?<crumb>.+?)"}#', $responseBody, $match)) {
-            return json_decode('"'.$match['crumb'].'"');
-        }
-
-        throw new ApiException('Could not extract crumb from response', ApiException::MISSING_CRUMB);
-    }
-
     private function validateHeaderLines(string $responseBody, array $expectedHeader): array
     {
         $lines = array_map('trim', explode("\n", trim($responseBody)));
@@ -151,60 +222,22 @@ class ResultDecoder
         return $lines;
     }
 
-    private function validateDate(string $value): \DateTime
+    private function validateDate($value): DateTime
     {
         try {
-            return new \DateTime($value, new \DateTimeZone('UTC'));
-        } catch (\Exception $e) {
+            if (is_int($value)) {
+                return (new DateTime())->setTimestamp($value);
+            } else {
+                return new DateTime((string)$value, new DateTimeZone('UTC'));
+            }
+        } catch (Exception $e) {
             throw new ApiException(sprintf('Not a date in column "Date":%s', $value), ApiException::INVALID_VALUE);
         }
     }
 
-    public function transformHistoricalDataResult(string $responseBody): array
-    {
-        $lines = $this->validateHeaderLines($responseBody, self::HISTORICAL_DATA_HEADER_LINE);
-
-        return array_map(function ($line) {
-            return $this->createHistoricalData(explode(',', $line));
-        }, $lines);
-    }
-
-    public function createHistoricalData(array $columns): HistoricalData
-    {
-        if (7 !== \count($columns)) {
-            throw new ApiException('CSV did not contain correct number of columns', ApiException::INVALID_RESPONSE);
-        }
-
-        $date = $this->validateDate($columns[0]);
-
-        for ($i = 1; $i <= 6; ++$i) {
-            if (!is_numeric($columns[$i]) && 'null' !== $columns[$i]) {
-                throw new ApiException(sprintf('Not a number in column "%s": %s', self::HISTORICAL_DATA_HEADER_LINE[$i], $columns[$i]), ApiException::INVALID_VALUE);
-            }
-        }
-
-        $open = (float) $columns[1];
-        $high = (float) $columns[2];
-        $low = (float) $columns[3];
-        $close = (float) $columns[4];
-        $adjClose = (float) $columns[5];
-        $volume = (int) $columns[6];
-
-        return new HistoricalData($date, $open, $high, $low, $close, $adjClose, $volume);
-    }
-
-    public function transformDividendDataResult(string $responseBody): array
-    {
-        $lines = $this->validateHeaderLines($responseBody, self::DIVIDEND_DATA_HEADER_LINE);
-
-        return array_map(function ($line) {
-            return $this->createDividendData(explode(',', $line));
-        }, $lines);
-    }
-
     private function createDividendData(array $columns): DividendData
     {
-        if (2 !== \count($columns)) {
+        if (2 !== count($columns)) {
             throw new ApiException('CSV did not contain correct number of columns', ApiException::INVALID_RESPONSE);
         }
 
@@ -214,53 +247,29 @@ class ResultDecoder
             throw new ApiException(sprintf('Not a number in column Dividends: %s', $columns[1]), ApiException::INVALID_VALUE);
         }
 
-        $dividends = (float) $columns[1];
+        $dividends = (float)$columns[1];
 
         return new DividendData($date, $dividends);
     }
 
-    public function transformSplitDataResult(string $responseBody): array
-    {
-        $lines = $this->validateHeaderLines($responseBody, self::SPLIT_DATA_HEADER_LINE);
-
-        return array_map(function ($line) {
-            return $this->createSplitData(explode(',', $line));
-        }, $lines);
-    }
-
     private function createSplitData(array $columns): SplitData
     {
-        if (2 !== \count($columns)) {
+        if (2 !== count($columns)) {
             throw new ApiException('CSV did not contain correct number of columns', ApiException::INVALID_RESPONSE);
         }
 
         $date = $this->validateDate($columns[0]);
 
-        $stockSplits = (string) $columns[1];
+        $stockSplits = (string)$columns[1];
 
         return new SplitData($date, $stockSplits);
-    }
-
-    public function transformQuotes(string $responseBody): array
-    {
-        $decoded = json_decode($responseBody, true);
-        if (!isset($decoded['quoteResponse']['result']) || !\is_array($decoded['quoteResponse']['result'])) {
-            throw new ApiException('Yahoo Search API returned an invalid result.', ApiException::INVALID_RESPONSE);
-        }
-
-        $results = $decoded['quoteResponse']['result'];
-
-        // Single element is returned directly in "quote"
-        return array_map(function (array $item) {
-            return $this->createQuote($item);
-        }, $results);
     }
 
     private function createQuote(array $json): Quote
     {
         $mappedValues = [];
         foreach ($json as $field => $value) {
-            if (\array_key_exists($field, self::QUOTE_FIELDS_MAP)) {
+            if (array_key_exists($field, self::QUOTE_FIELDS_MAP)) {
                 $type = self::QUOTE_FIELDS_MAP[$field];
                 try {
                     $mappedValues[$field] = $this->valueMapper->mapValue($value, $type);

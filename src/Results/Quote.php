@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Scheb\YahooFinanceApi\Results;
 
-class Quote implements \JsonSerializable
+use DateTimeInterface;
+use JsonSerializable;
+
+class Quote implements JsonSerializable
 {
     private $ask;
     private $askSize;
@@ -129,22 +132,22 @@ class Quote implements \JsonSerializable
         return $this->currency;
     }
 
-    public function getDividendDate(): ?\DateTimeInterface
+    public function getDividendDate(): ?DateTimeInterface
     {
         return $this->dividendDate;
     }
 
-    public function getEarningsTimestamp(): ?\DateTimeInterface
+    public function getEarningsTimestamp(): ?DateTimeInterface
     {
         return $this->earningsTimestamp;
     }
 
-    public function getEarningsTimestampStart(): ?\DateTimeInterface
+    public function getEarningsTimestampStart(): ?DateTimeInterface
     {
         return $this->earningsTimestampStart;
     }
 
-    public function getEarningsTimestampEnd(): ?\DateTimeInterface
+    public function getEarningsTimestampEnd(): ?DateTimeInterface
     {
         return $this->earningsTimestampEnd;
     }
@@ -289,7 +292,7 @@ class Quote implements \JsonSerializable
         return $this->postMarketPrice;
     }
 
-    public function getPostMarketTime(): ?\DateTimeInterface
+    public function getPostMarketTime(): ?DateTimeInterface
     {
         return $this->postMarketTime;
     }
@@ -309,7 +312,7 @@ class Quote implements \JsonSerializable
         return $this->preMarketPrice;
     }
 
-    public function getPreMarketTime(): ?\DateTimeInterface
+    public function getPreMarketTime(): ?DateTimeInterface
     {
         return $this->preMarketTime;
     }
@@ -374,7 +377,7 @@ class Quote implements \JsonSerializable
         return $this->regularMarketPrice;
     }
 
-    public function getRegularMarketTime(): ?\DateTimeInterface
+    public function getRegularMarketTime(): ?DateTimeInterface
     {
         return $this->regularMarketTime;
     }
