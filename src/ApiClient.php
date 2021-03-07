@@ -255,7 +255,7 @@ class ApiClient
             }
             $return = [];
             foreach ($response['chart']['result'] as $result) {
-                $count = count($result['timestamp']);
+                $count = count($result['timestamp'] ?? []);
                 foreach ($result['indicators']['quote'] as $index1 => $quote) {
                     for ($index2 = 0; $index2 < $count; ++$index2) {
                         $res = [
