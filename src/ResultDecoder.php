@@ -169,7 +169,7 @@ class ResultDecoder
         }, $lines);
     }
 
-    private function createHistoricalData(array $columns): HistoricalData
+    public function createHistoricalData(array $columns): HistoricalData
     {
         if (7 !== \count($columns)) {
             throw new ApiException('CSV did not contain correct number of columns', ApiException::INVALID_RESPONSE);
